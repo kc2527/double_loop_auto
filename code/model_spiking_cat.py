@@ -20,22 +20,22 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
 
     nmda_thresh = 0.0
 
-    alpha_w_vis_dms = 5e-15
-    beta_w_vis_dms = 5e-15
+    alpha_w_vis_dms = 5e-8
+    beta_w_vis_dms = 5e-8
     gamma_w_vis_dms = 0.0
 
-    alpha_w_premotor_dls = 1e-15
-    beta_w_premotor_dls = 1e-15
+    alpha_w_premotor_dls = 1e-8
+    beta_w_premotor_dls = 1e-8
     gamma_w_premotor_dls = 0.0
 
-    alpha_w_vis_premotor = 1e-16
-    beta_w_vis_premotor = 1e-16
+    alpha_w_vis_premotor = 1e-8
+    beta_w_vis_premotor = 1e-8
 
-    alpha_w_premotor_motor = 3e-17
-    beta_w_premotor_motor = 3e-17
+    alpha_w_premotor_motor = 3e-9
+    beta_w_premotor_motor = 3e-9
 
     vis_dim = 100
-    vis_amp = 1
+    vis_amp = 150
     vis_sig = 15
     vis = np.zeros((vis_dim, vis_dim))
     w_vis_dms_A = np.zeros((vis_dim, vis_dim))
@@ -173,9 +173,9 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
             vis_act_B = np.dot(vis.flatten(), w_vis_dms_B.flatten())
 
             # TODO: Model might need more juice to learn. Consider turning off normalisation
-            total = vis_act_A + vis_act_B
-            vis_act_A /= total
-            vis_act_B /= total
+            # total = vis_act_A + vis_act_B
+            # vis_act_A /= total
+            # vis_act_B /= total
 
             # define external inputs (visual input to DMS layer)
             I_ext[0, n_steps // 3:2 * n_steps // 3] = vis_act_A
@@ -239,6 +239,8 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
             # NOTE: 3-factor vis-dms
             dms_A = g[0, :].sum()
             dms_B = g[1, :].sum()
+
+            print(f"DMS A activity: {dms_A}, DMS B activity: {dms_B}")
 
             for ii in range(vis_dim):
                 for jj in range(vis_dim):
@@ -372,7 +374,7 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
 
             if trl % 10 == 0 and trl > 0:
 
-                fig, ax = plt.subplots(1, 4, squeeze=False, figsize=(13, 8))
+                fig, ax = plt.subplots(1, 5, squeeze=False, figsize=(13, 8))
 
                 im0 = ax[0, 0].imshow(w_vis_dms_A, cmap="viridis")
                 ax[0, 0].set_title("w_vis_dms_A (current)")
@@ -389,6 +391,10 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
                 im3 = ax[0, 3].imshow(w_vis_pm_B, cmap="viridis")
                 ax[0, 3].set_title("w_vis_pm_B (current)")
                 plt.colorbar(im3, ax=ax[0, 3], fraction=0.046, pad=0.04)
+
+                im4 = ax[0, 4].imshow(vis, cmap="viridis")
+                ax[0, 4].set_title("vis (current)")
+                plt.colorbar(im4, ax=ax[0, 4], fraction=0.046, pad=0.04)
 
                 fig.suptitle(f"Sim {sim} | Trial {trl}", fontsize=14)
                 plt.tight_layout()
