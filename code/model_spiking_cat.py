@@ -9,7 +9,7 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
 
     ds = make_stim_cats()
 
-    np.random.seed(0)
+    # np.random.seed(0)
 
     tau = 1
     T = 3000
@@ -21,13 +21,13 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
     nmda_thresh = 0.0
 
     # stage 1 sub-cortical
-    alpha_w_vis_dms = 7.5e-8
-    beta_w_vis_dms = 7.5e-8
+    alpha_w_vis_dms = 5e-8
+    beta_w_vis_dms = 5e-8
     gamma_w_vis_dms = 0.0
 
     # stage 2 sub-cortical
-    alpha_w_premotor_dls = 1e-13
-    beta_w_premotor_dls = 1e-14
+    alpha_w_premotor_dls = 2e-14
+    beta_w_premotor_dls = 2e-14
     gamma_w_premotor_dls = 0.0
 
     # stage 1 cortical
@@ -110,8 +110,8 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
         print(f"Simulation {sim + 1}/{n_simulations}")
 
         # vis->dms: fully connected
-        w_vis_dms_A = np.random.uniform(0.45, 0.55, (vis_dim, vis_dim))
-        w_vis_dms_B = np.random.uniform(0.45, 0.55, (vis_dim, vis_dim))
+        w_vis_dms_A = np.random.uniform(0.4, 0.6, (vis_dim, vis_dim))
+        w_vis_dms_B = np.random.uniform(0.4, 0.6, (vis_dim, vis_dim))
 
         w[0, 2] = 0.04
         w[0, 3] = 0
@@ -147,8 +147,6 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
         # lateral inhibition between DLS units
         w[4, 5] = -0.0
         w[5, 4] = -0.0
-
-        # TODO: sort out lat inhib later... for now will implement at the weight update level
 
         for trl in range(n_trials - 1):
 
@@ -217,23 +215,54 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
                 u[mask, i] += d[mask]
                 spike[mask, i] = 1
 
-                # response
-                if (g[6, i] - g[7, i]) > resp_thresh:
-                    resp[sim, trl] = 0
-                    rt[sim, trl] = i
-                    break
-                elif (g[7, i] - g[6, i]) > resp_thresh:
-                    resp[sim, trl] = 1
-                    rt[sim, trl] = i
-                    break
+                # # response
+                # if (g[6, i] - g[7, i]) > resp_thresh:
+                #     resp[sim, trl] = 0
+                #     rt[sim, trl] = i
+                #     break
+                # elif (g[7, i] - g[6, i]) > resp_thresh:
+                #     resp[sim, trl] = 1
+                #     rt[sim, trl] = i
+                #     break
+
+            # TODO: fiddly lat inhib implementation
+            if g[0, :].sum() > g[1, :].sum():
+                g[1, :].fill(0)
+                v[1, :].fill(izp[1, 1])
+            elif g[1, :].sum() > g[0, :].sum():
+                g[0, :].fill(0)
+                v[0, :].fill(izp[1, 1])
+
+            if g[2, :].sum() > g[3, :].sum():
+                g[3, :].fill(0)
+                v[3, :].fill(izp[3, 1])
+            elif g[3, :].sum() > g[2, :].sum():
+                g[2, :].fill(0)
+                v[2, :].fill(izp[2, 1])
+
+            if g[4, :].sum() > g[5, :].sum():
+                g[5, :].fill(0)
+                v[5, :].fill(izp[5, 1])
+            elif g[5, :].sum() > g[4, :].sum():
+                g[4, :].fill(0)
+                v[4, :].fill(izp[4, 1])
+
+            if g[6, :].sum() > g[7, :].sum():
+                g[7, :].fill(0)
+                v[7, :].fill(izp[7, 1])
+            elif g[7, :].sum() > g[6, :].sum():
+                g[6, :].fill(0)
+                v[6, :].fill(izp[6, 1])
 
             # pick a response if it hasn't happened already
             if rt[sim, trl] == 0:
                 rt[sim, trl] = i
-                if g[6, i] != g[7, i]:
-                    resp[sim, trl] = np.argmax(g[6:8, i]) + 1
+                if g[6, :].sum() > g[7, :].sum():
+                    resp[sim, trl] = 1
+                elif g[7, :].sum() > g[6, :].sum():
+                    resp[sim, trl] = 2
                 else:
-                    resp[sim, trl] = np.random.choice([0, 1]) + 1
+                    resp[sim, trl] = np.random.choice([1, 2])
 
             # feedback
             if cat[sim, trl] == resp[sim, trl]:
@@ -249,12 +278,6 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
             dms_A = g[0, :].sum()
             dms_B = g[1, :].sum()
 
-            # TODO: fiddly lat inhib implementation
-            if resp[sim, trl] == 1:
-                dms_B = 0
-            elif resp[sim, trl] == 2:
-                dms_A = 0
-
             for ii in range(vis_dim):
                 for jj in range(vis_dim):
 
@@ -263,16 +286,14 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
                     post_activity = dms_A
                     dw_1 = alpha_w_vis_dms * pre_activity * np.clip( post_activity - nmda_thresh, 0, None) * np.clip( rpe[sim, trl], 0, None) * (1 - w_vis_dms_A[ii, jj])
                     dw_2 = beta_w_vis_dms * pre_activity * np.clip( post_activity - nmda_thresh, 0, None) * np.clip( rpe[sim, trl], None, 0) * w_vis_dms_A[ii, jj]
-                    dw_3 = -gamma_w_vis_dms * pre_activity * np.clip( nmda_thresh - post_activity, 0, None) * w_vis_dms_A[ii,
-                                                                            jj]
+                    dw_3 = -gamma_w_vis_dms * pre_activity * np.clip( nmda_thresh - post_activity, 0, None) * w_vis_dms_A[ii, jj]
                     w_vis_dms_A[ii, jj] += dw_1 + dw_2 + dw_3
                     w_vis_dms_A[ii, jj] = np.clip(w_vis_dms_A[ii, jj], 0, 1)
 
                     post_activity = dms_B
                     dw_1 = alpha_w_vis_dms * pre_activity * np.clip( post_activity - nmda_thresh, 0, None) * np.clip( rpe[sim, trl], 0, None) * (1 - w_vis_dms_B[ii, jj])
                     dw_2 = beta_w_vis_dms * pre_activity * np.clip( post_activity - nmda_thresh, 0, None) * np.clip( rpe[sim, trl], None, 0) * w_vis_dms_B[ii, jj]
-                    dw_3 = -gamma_w_vis_dms * pre_activity * np.clip( nmda_thresh - post_activity, 0, None) * w_vis_dms_B[ii,
-                                                                            jj]
+                    dw_3 = -gamma_w_vis_dms * pre_activity * np.clip( nmda_thresh - post_activity, 0, None) * w_vis_dms_B[ii, jj]
                     w_vis_dms_B[ii, jj] += dw_1 + dw_2 + dw_3
                     w_vis_dms_B[ii, jj] = np.clip(w_vis_dms_B[ii, jj], 0, 1)
 
@@ -292,36 +313,15 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
             pre_activity = g[pre_indices, :].sum(axis=1)
             post_activity = g[post_indices, :].sum(axis=1)
 
-            # TODO: fiddly lat inhib implementation
-            if resp[sim, trl] == 1:
-                post_activity[1] = 0
-                post_activity[3] = 0
-            elif resp[sim, trl] == 2:
-                post_activity[0] = 0
-                post_activity[2] = 0
-
-            # TODO: Even fiddlier.
-            if pre_activity[0] > pre_activity[2]:
-                pre_activity[2] = 0
-                pre_activity[3] = 0
-
             # Vectorized weight update components
-            dw_1 = alpha_w_premotor_dls * pre_activity * np.clip(
-                post_activity - nmda_thresh, 0, None) * np.clip(
-                    rpe[sim, trl], 0,
-                    None) * (1 - w[pre_indices, post_indices])
-            dw_2 = beta_w_premotor_dls * pre_activity * np.clip(
-                post_activity - nmda_thresh, 0, None) * np.clip(
-                    rpe[sim, trl], None, 0) * w[pre_indices, post_indices]
-            dw_3 = -gamma_w_premotor_dls * pre_activity * np.clip(
-                nmda_thresh - post_activity, 0, None) * w[pre_indices,
-                                                          post_indices]
+            dw_1 = alpha_w_premotor_dls * pre_activity * np.clip( post_activity - nmda_thresh, 0, None) * np.clip( rpe[sim, trl], 0, None) * (1 - w[pre_indices, post_indices])
+            dw_2 = beta_w_premotor_dls * pre_activity * np.clip( post_activity - nmda_thresh, 0, None) * np.clip( rpe[sim, trl], None, 0) * w[pre_indices, post_indices]
+            dw_3 = -gamma_w_premotor_dls * pre_activity * np.clip( nmda_thresh - post_activity, 0, None) * w[pre_indices, post_indices]
 
             # Apply the total weight change
             dw = dw_1 + dw_2 + dw_3
             w[pre_indices, post_indices] += dw
-            w[pre_indices,
-              post_indices] = np.clip(w[pre_indices, post_indices], 0, 1)
+            w[pre_indices, post_indices] = np.clip(w[pre_indices, post_indices], 0, 1)
 
             # NOTE: 2-factor vis-premotor
             pm_A = g[2, :].sum()
@@ -388,12 +388,12 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
             spike_rec[:, sim, trl, :] = spike
             w_rec[:, :, sim, trl] = w
 
+            print(
+                f"  Cat: {cat[sim, trl]}, Resp: {resp[sim, trl]}, Acc: {cat[sim, trl] == resp[sim, trl]}"
+            )
+
             # if trl % 10 == 0 and trl > 0:
             if True:
-
-                print(
-                    f"  Cat: {cat[sim, trl]}, Resp: {resp[sim, trl]}, Acc: {cat[sim, trl] == resp[sim, trl]}"
-                )
 
                 fig = plt.figure(figsize=(15, 8))
                 gs = plt.GridSpec(8, 8)
@@ -419,12 +419,12 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
                 ]
 
                 axx = ax[0][0]
-                im0 = axx.imshow(w_vis_dms_A, cmap="viridis", vmin=0, vmax=1)
+                im0 = axx.imshow(w_vis_dms_A, cmap="viridis")
                 axx.set_title("w_vis_dms_A (current)")
                 plt.colorbar(im0, ax=axx, fraction=0.046, pad=0.04)
 
                 axx = ax[0][1]
-                im1 = axx.imshow(w_vis_dms_B, cmap="viridis", vmin=0, vmax=1)
+                im1 = axx.imshow(w_vis_dms_B, cmap="viridis")
                 axx.set_title("w_vis_dms_B (current)")
                 plt.colorbar(im1, ax=axx, fraction=0.046, pad=0.04)
 
