@@ -9,10 +9,10 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
 
     ds = make_stim_cats(n_trials//2)
 
-    ds.loc[ds.cat == 1, 'x'] = 10
-    ds.loc[ds.cat == 1, 'y'] = 10
-    ds.loc[ds.cat == 2, 'x'] = 90
-    ds.loc[ds.cat == 2, 'y'] = 90
+    # ds.loc[ds.cat == 1, 'x'] = 10
+    # ds.loc[ds.cat == 1, 'y'] = 10
+    # ds.loc[ds.cat == 2, 'x'] = 90
+    # ds.loc[ds.cat == 2, 'y'] = 90
 
     # np.random.seed(0)
 
@@ -27,7 +27,7 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
 
     # stage 1 sub-cortical
     alpha_w_vis_dms = 1e-9
-    beta_w_vis_dms = 1e-9 * 0
+    beta_w_vis_dms = 1e-10
     gamma_w_vis_dms = 0.0
 
     # stage 2 sub-cortical
@@ -215,8 +215,7 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
 
                 # Euler's method
                 noise = np.random.normal(mu[trl], sig[trl])
-                dvdt = (k * (v[:, i - 1] - vr) * (v[:, i - 1] - vt) -
-                        u[:, i - 1] + I_net[:, i - 1] * noise) / C
+                dvdt = (k * (v[:, i - 1] - vr) * (v[:, i - 1] - vt) - u[:, i - 1] + I_net[:, i - 1] * noise) / C
                 dudt = a * (b * (v[:, i - 1] - vr) - u[:, i - 1])
                 dgdt = (-g[:, i - 1] + psp_amp * spike[:, i - 1]) / psp_decay
 
@@ -961,6 +960,7 @@ lesion_cell_inds = []
 
 lesion_mean = 0
 lesion_sd = 0
+
 fig_label = 'cat_learn'
 simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd, fig_label)
 # plot_simulation(fig_label)
