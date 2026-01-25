@@ -9,11 +9,6 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
 
     ds = make_stim_cats(n_trials // 2)
 
-    # ds.loc[ds.cat == 1, 'x'] = 10
-    # ds.loc[ds.cat == 1, 'y'] = 10
-    # ds.loc[ds.cat == 2, 'x'] = 90
-    # ds.loc[ds.cat == 2, 'y'] = 90
-
     # np.random.seed(0)
 
     tau = 1
@@ -32,7 +27,7 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
 
     # stage 2 sub-cortical
     alpha_w_premotor_dls = 2e-15
-    beta_w_premotor_dls = 2e-15
+    beta_w_premotor_dls = 1e-15
     gamma_w_premotor_dls = 0.0
 
     # stage 1 cortical
@@ -89,7 +84,7 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
 
     psp_amp = 1e5
     psp_decay = 200
-    resp_thresh = 1e3
+    resp_thresh = 5e6
 
     # input into cells from the periphery
     I_ext = np.zeros((n_cells, n_steps))
@@ -160,8 +155,8 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
         w[3, 2] = -0.01 * 0
 
         # lateral inhibition between DLS units
-        w[4, 5] = -0.15
-        w[5, 4] = -0.15
+        w[4, 5] = -0.5
+        w[5, 4] = -0.5
 
         for trl in range(n_trials - 1):
 
@@ -234,46 +229,19 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
                 spike[mask, i] = 1
 
 
-#                # response
-#                if (g[6, i] - g[7, i]) > resp_thresh:
-#                    resp[sim, trl] = 0
-#                    rt[sim, trl] = i
-#                    break
-#                elif (g[7, i] - g[6, i]) > resp_thresh:
-#                    resp[sim, trl] = 1
-#                    rt[sim, trl] = i
-#                    break
+                # response
+                if (g[6, :].sum() - g[7, :].sum()) > resp_thresh:
+                    resp[sim, trl] = 1
+                    rt[sim, trl] = i
+                    break
+                elif (g[7, :].sum() - g[6, :].sum()) > resp_thresh:
+                    resp[sim, trl] = 2
+                    rt[sim, trl] = i
+                    break
 
-#            # TODO: fiddly lat inhib implementation
-#            if g[0, :].sum() > g[1, :].sum():
-#                g[1, :].fill(0)
-#                v[1, :].fill(izp[1, 1])
-#            elif g[1, :].sum() > g[0, :].sum():
-#                g[0, :].fill(0)
-#                v[0, :].fill(izp[1, 1])
-#
-#            if g[2, :].sum() > g[3, :].sum():
-#                g[3, :].fill(0)
-#                # v[3, :].fill(izp[3, 1])
-#            elif g[3, :].sum() > g[2, :].sum():
-#                g[2, :].fill(0)
-#                v[2, :].fill(izp[2, 1])
-#
-#            if g[4, :].sum() > g[5, :].sum():
-#                g[5, :].fill(0)
-#                v[5, :].fill(izp[5, 1])
-#            elif g[5, :].sum() > g[4, :].sum():
-#                g[4, :].fill(0)
-#                v[4, :].fill(izp[4, 1])
-#
-#            if g[6, :].sum() > g[7, :].sum():
-#                g[7, :].fill(0)
-#                v[7, :].fill(izp[7, 1])
-#            elif g[7, :].sum() > g[6, :].sum():
-#                g[6, :].fill(0)
-#                v[6, :].fill(izp[6, 1])
+            # print('Motor A sum ', g[6, :].sum(), 'Motor B sum ', g[7, :].sum())
 
-# pick a response if it hasn't happened already
+            # pick a response if it hasn't happened already
             if rt[sim, trl] == 0:
                 rt[sim, trl] = i
                 if g[6, :].sum() > g[7, :].sum():
@@ -748,7 +716,7 @@ def plot_simulation(fig_label):
     w_vis_dms_B_avg = np.mean(w_vis_dms_B_rec[:, :, -1, :], axis=(0, 1))
     axx.plot(tt, w_vis_dms_A_avg, marker='o', label='w_vis_dms_A_avg')
     axx.plot(tt, w_vis_dms_B_avg, marker='o', label='w_vis_dms_B_avg')
-    axx.set_ylim(-0.1, 1.5)
+    axx.set_ylim(-0.1, 1.0)
     axx.legend(loc='upper center', ncol=2)
     axx.set_xticks([])
     ax.set_title('Stage 1 subcortical')
@@ -853,20 +821,25 @@ def plot_simulation(fig_label):
     plt.close()
 
 n_simulations = 1
-n_trials = 1500
+n_trials = 4 
 
 lesion_mean = 0.0
 lesion_sd = 0.0
 
 trial_segments = [
-    np.arange(500, n_trials),
-    np.arange(750, n_trials),
-    np.arange(1000, n_trials),
+    np.arange((n_trials - 1), n_trials),
+    # np.arange(100, n_trials),
+    # np.arange(250, n_trials),
+    # np.arange(500, n_trials),
+    # np.arange(750, n_trials),
+    # np.arange(1000, n_trials),
+    # np.arange(1250, n_trials),
+    # np.arange(1500, n_trials),
 ]
 
 lesion_cell_sets = [
     np.array([0, 1]),  # DMS
-    np.array([4, 5])   # DLS
+   #  np.array([4, 5])   # DLS
 ]
 
 for i, lesioned_trials in enumerate(trial_segments):
