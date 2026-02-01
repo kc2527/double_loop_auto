@@ -8,12 +8,12 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
              fig_label, rotation, probe_trial_onsets, n_probe_trials, n_trials,
              n_simulations):
 
-    np.random.seed(1)
+    np.random.seed(9)
 
     ds, ds_90, ds_180 = make_stim_cats(n_trials // 2)
     ds_0 = ds.sample(n=n_probe_trials, random_state=0).reset_index(drop=True)
     ds_90 = ds_90.sample(n=n_probe_trials, random_state=0).reset_index(drop=True)
-    ds_180 = ds_90.sample(n=n_probe_trials, random_state=0).reset_index(drop=True)
+    ds_180 = ds_180.sample(n=n_probe_trials, random_state=0).reset_index(drop=True)
 
     if rotation == 0:
         ds_probe = ds_0
@@ -48,8 +48,8 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
     nmda_thresh = 0.0
 
     # stage 1 sub-cortical
-    alpha_w_vis_dms = 1e-9
-    beta_w_vis_dms = 1e-11
+    alpha_w_vis_dms = 5e-10
+    beta_w_vis_dms = 2e-10
     gamma_w_vis_dms = 0.0
 
     # stage 2 sub-cortical
@@ -58,12 +58,12 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
     gamma_w_premotor_dls = 0.0
 
     # stage 1 cortical
-    alpha_w_vis_premotor = 5e-11 * 0
-    beta_w_vis_premotor = 5e-11 * 0
+    alpha_w_vis_premotor = 5e-11
+    beta_w_vis_premotor = 5e-11
 
     # stage 2 cortical
-    alpha_w_premotor_motor = 1e-18 * 0
-    beta_w_premotor_motor = 1e-18 * 0
+    alpha_w_premotor_motor = 1e-20
+    beta_w_premotor_motor = 1e-20
 
     vis_dim = 100
     vis_amp = 7
@@ -264,6 +264,11 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
                     resp[sim, trl] = 2
                     rt[sim, trl] = i
                     break
+
+            # # TODO: temp method to guess once in a while... will likely replace with motor noise if it works
+            # if rt[sim, trl] == 0:
+            #     if np.random.rand() < 0.1:
+            #         resp[sim, trl] = np.random.choice([1, 2])
 
             # pick a response if it hasn't happened already
             if rt[sim, trl] == 0:
@@ -880,9 +885,9 @@ lesioned_trials = []
 lesion_cell_inds = []
 
 n_simulations = 1
-n_trials = 600
-probe_trial_onsets = [600]
-n_probe_trials = 200
+n_trials = 4000
+probe_trial_onsets = [500, 1500, 3000]
+n_probe_trials = 100
 
 for rotation in [90, 180]:
     fig_label = str(rotation)
@@ -891,4 +896,4 @@ for rotation in [90, 180]:
              n_simulations)
     plot_simulation(fig_label)
 
-# plot_simulation_2()
+plot_simulation_2()

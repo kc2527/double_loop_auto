@@ -31,12 +31,12 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd, fig_labe
     alpha_w_premotor_motor = 3e-17
     beta_w_premotor_motor = 3e-17
 
-    cat = np.zeros((n_simulations, n_trials))
-    resp = np.zeros((n_simulations, n_trials))
-    rt = np.zeros((n_simulations, n_trials))
-    r = np.zeros((n_simulations, n_trials))
-    p = np.ones((n_simulations, n_trials)) * 0.5
-    rpe = np.zeros((n_simulations, n_trials))
+    cat = np.zeros((n_simulations, n_trials))        # cat of stim shown
+    resp = np.zeros((n_simulations, n_trials))       # network response
+    rt = np.zeros((n_simulations, n_trials))         # reaction time
+    r = np.zeros((n_simulations, n_trials))          # reward
+    p = np.ones((n_simulations, n_trials)) * 0.5     # predicted reward (init @ 0.5) 
+    rpe = np.zeros((n_simulations, n_trials))        # reward prediction error
 
     izp = np.array([
         [100, -60, -40, 35, 0.03, -2, -50, 100, 0.7],      # visual A 0
@@ -52,14 +52,26 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd, fig_labe
     ])
 
     C, vr, vt, vpeak, a, b, c, d, k = izp.T
-
+    
+    '''
+    multiplicative noise term that scales synaptic input current
+    '''
     mu = np.ones((n_trials, izp.shape[0]))
     sig = np.zeros((n_trials, izp.shape[0]))
 
+    '''
+    keeps motor neurons deterministic (no schociasticity), this is to remove
+    the chance of decisions flipping randomly due to motor noise (e.g., if
+    (g[8,i] - g[9,i]) > resp_thresh:)
+    '''
     # noise in motor units
     sig[:, 8] = 0
     sig[:, 9] = 0
 
+    '''
+    @ bottom, lesion_mean and lesion_sd are set to 0, therefore, mu and sig
+    for lesioned trials are 0
+    '''
     # lesion
     mu[np.ix_(lesioned_trials, lesion_cell_inds)] = lesion_mean
     sig[np.ix_(lesioned_trials, lesion_cell_inds)] = lesion_sd
@@ -77,10 +89,10 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd, fig_labe
     # input into cells from other cells
     I_net = np.zeros((n_cells, n_steps))
 
-    v = np.zeros((n_cells, n_steps))
-    u = np.zeros((n_cells, n_steps))
-    g = np.zeros((n_cells, n_steps))
-    spike = np.zeros((n_cells, n_steps))
+    v = np.zeros((n_cells, n_steps))       # membrane potential
+    u = np.zeros((n_cells, n_steps))       # recovery 
+    g = np.zeros((n_cells, n_steps))       # conductance
+    spike = np.zeros((n_cells, n_steps))   # if spike crossed threshold
     v[:, 0] = izp[:, 1]
 
     w = np.zeros((n_cells, n_cells))
@@ -152,12 +164,25 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd, fig_labe
             g.fill(0)
             spike.fill(0)
 
+            '''
+            setting each neurons membrane potential (v) at t(0) to its
+            resting potential (vr) because v.fill(0) above this sets vr to 0 at
+            the start of every trial
+            '''
             v[:, 0] = izp[:, 1]
 
+           '''
+           random choice of what stimulus/category gets presented this trial;
+           x = 0 (stimulus A - vis A neuron receives input), x = 1 (stimulus B)
+           '''
             # trial info
             x = np.random.choice([0, 1])
             cat[sim, trl] = x
 
+           '''
+           only the visual cell corresponding to the stim (x is either 0 or 1)
+           receives injected current for the middle 1/3 of the trial 
+           '''
             # define external inputs
             I_ext[x, n_steps // 3:2 * n_steps // 3] = vis_amp
 
@@ -165,14 +190,37 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd, fig_labe
 
                 dt = t[i] - t[i - 1]
 
+                '''
+                - @ = matrix-vector multiplication 
+                - .T = transpose (w.T @ g)[j] = sum_k w[k, j] * g[k]
+                - np.diag(w) * g = [w[0,0]*g[0], w[1,1]*g[1], ..., w[9,9]*g[9]]
+                  (i.e., this is each neurons contribution to itself, if it
+                  exists)
+                - subtracting diag(w) * g removes those terms
+                - so w.T @ g - diag(w)*g is the total input from all other
+                  neurons, excluding self input
+                '''
                 # Compute net input using matrix multiplication and remove self-connections
                 I_net[:, i - 1] = w.T @ g[:, i - 1] - np.diag(w) * g[:, i - 1]
 
                 # Add external inputs
                 I_net[:, i - 1] += I_ext[:, i - 1]
 
+                '''
+                noise is a vector where, on normal trials, it equals 1 and on
+                lesioned trials it equals 0
+                '''
                 # Euler's method
                 noise = np.random.normal(mu[trl], sig[trl])
+
+                '''
+                noise: I_net is the total synaptic and external input and it
+                is * by noise. if noise = 1, then I_net = input, if noise = 0,
+                then I_net = 0. therefore, dvdt = dynamics - u, which means that
+                it receives no synaptic drive and is functionally silent. noise
+                gates the input current, and the lesion has 2 components; 1)
+                silents, and 2) no plasticity
+                '''
                 dvdt = (k * (v[:, i - 1] - vr) * (v[:, i - 1] - vt) - u[:, i - 1] + I_net[:, i - 1] * noise) / C
                 dudt = a * (b * (v[:, i - 1] - vr) - u[:, i - 1])
                 dgdt = (-g[:, i - 1] + psp_amp * spike[:, i - 1]) / psp_decay
@@ -181,12 +229,35 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd, fig_labe
                 u[:, i] = u[:, i - 1] + dudt * dt
                 g[:, i] = g[:, i - 1] + dgdt * dt
 
+                '''
+                - checks if each neuron exceeded the spike threshold at this time
+                step 
+                - if it does, then clamp the previous time point to show a
+                spike peak
+                - reset the membrane potential (c is the post-spike
+                reset v, this allows for repeated spiking)
+                - d controls how much a neuron 'tires' after each spike, so a
+                  larger d = more suppression after each spike, so it is harder to
+                  fire again (spike-triggered adaptation). after a spike u + d,
+                  which increases u and as a result, decreases the neurons drive
+                  (dv/dt = ... - u + I)
+                - last line is for bookkeeping and records that a spike occured
+                  at time i, and is later used to update conductance (dgdt = (-g
+                  + psp_amp * spike) / psp_decay)
+                '''
                 mask = v[:, i] >= vpeak
                 v[mask, i - 1] = vpeak[mask]
                 v[mask, i] = c[mask]
                 u[mask, i] += d[mask]
                 spike[mask, i] = 1
 
+                '''
+                this details evidence accumulation, so a response occurs when
+                one accumulates more evidence than the other. decisions are
+                based on accumulated synaptic output (g) because it is more
+                stable, jumps when a neuron spikes and decays over time,
+                compared to the fast, noisy, and constantly reset v 
+                '''
                 # response
                 if (g[8, i] - g[9, i]) > resp_thresh:
                     resp[sim, trl] = 0
@@ -197,6 +268,15 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd, fig_labe
                     rt[sim, trl] = i
                     break
 
+            '''
+            if no response has occured by the end of the trial:
+            - set rt to the last timestep of the trial
+            - check if one motor neuron is more active than the other (even if
+              this difference is tiny)
+            - if they aren't equal, pick the one with a greater conductance
+              (more evidence accumulated)
+            - if, by chance, they are equal, pick one randomly (guess)
+            '''
             # pick a response if it hasn't happened already
             if rt[sim, trl] == 0:
                 rt[sim, trl] = i
@@ -215,12 +295,24 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd, fig_labe
             rpe[sim, trl] = r[sim, trl] - p[sim, trl]
             p[sim, trl + 1] = p[sim, trl] + alpha_critic * rpe[sim, trl]
 
+            '''
+            during lesioned trials, skip all synaptic updates (freeze neurons),
+            when non-lesioned, weights are updated normally
+            '''
             # TODO: TEMP HACK TO DEBUG SOME CRAP
             if trl >= lesioned_trials[0] and trl <= lesioned_trials[-1]:
                 pass
 
             else:
 
+                '''
+                - weight matrix is initialised w[n_cells, n_cells] (10 by 10) to
+                  index cell weights (rows = pre, columns = post)
+                - synapses creates an index for the weights that need to be
+                  updated (e.g., vis -> dms)
+                - therefore pre/post_indicies are the indexes that will be used
+                  to locate the cells 
+                ''' 
                 # NOTE: 3-factor vis-dms
                 synapses = np.array([
                     (0, 2),
@@ -233,21 +325,55 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd, fig_labe
                 pre_indices = synapses[:, 0]
                 post_indices = synapses[:, 1]
 
+                ''' 
+                this computes how much each w[pre, post] changes which will then
+                be applied to the actual w entries next
+                '''
                 # Compute presynaptic and postsynaptic activity sums
                 pre_activity = g[pre_indices, :].sum(axis=1)
                 post_activity = g[post_indices, :].sum(axis=1)
 
+                '''
+                - alpha is learning rate for potentiation (LTP)
+                - beta is rate of depression (LTD)
+                - pre_activity is how much the presynaptic neuron fired overall
+                - only allow strengthening (dw_1) when postsynaptic neuron is
+                  above threshold (nmda_thresh)
+                - np.clip(rpe, 0, none): when rpe is positive, this term is
+                  active, not ative when rpe is negative (otherwise it's 0)
+                - np.clip(rpe, none, 0): when rpe is negative, this term is
+                  active, not active when rpe is positive (otherwise it's 0)
+                - dw_3 for this connection is currently 0 because gamma_w_vis_dms = 0
+                '''
                 # Vectorized weight update components
-                dw_1 = alpha_w_vis_dms * pre_activity * np.clip(
-                    post_activity - nmda_thresh, 0, None) * np.clip(
-                        rpe[sim, trl], 0, None) * (1 - w[pre_indices, post_indices])
-                dw_2 = beta_w_vis_dms * pre_activity * np.clip(
-                    post_activity - nmda_thresh, 0, None) * np.clip(
-                        rpe[sim, trl], None, 0) * w[pre_indices, post_indices]
-                dw_3 = -gamma_w_vis_dms * pre_activity * np.clip(
-                    nmda_thresh - post_activity, 0, None) * w[pre_indices,
-                                                              post_indices]
+                dw_1 = alpha_w_vis_dms * pre_activity * np.clip( post_activity - nmda_thresh, 0, None) * np.clip( rpe[sim, trl], 0, None) * (1 - w[pre_indices, post_indices])
+                dw_2 = beta_w_vis_dms * pre_activity * np.clip( post_activity - nmda_thresh, 0, None) * np.clip( rpe[sim, trl], None, 0) * w[pre_indices, post_indices]
+                dw_3 = -gamma_w_vis_dms * pre_activity * np.clip( nmda_thresh - post_activity, 0, None) * w[pre_indices, post_indices]
 
+                '''
+                what is dw_3??
+                - implements activity-dependent decay i.e., if pre neuron is
+                  active, but post neuron is not sufficiently active (above
+                  threshold), weaken the synapse
+                - not needed here to prevent runaway learning
+                - if this were active, lesioned neurons would actively lose
+                  synaptic strength over trials when learning is supposed to be
+                  'frozen', so setting it to 0 avoids this
+                - logic is to only apply decay when pos_activity < nmda_thresh
+                - if this were active, synapses that are presynaptically active
+                  but fail to drive post firing would weaken, even without
+                  negative RPE
+
+                DOUBLE CHECK WITH MATT
+                '''
+
+                '''
+                - calculate dw by adding total weight changes together, then add
+                  their computed dw values to their synapses
+                - np.clip keeps weights between 0 and 1 (plastic synapses are
+                  clipped whereas fixed weights that are not updated, are not
+                  clipped)
+                '''
                 # Apply the total weight change
                 dw = dw_1 + dw_2 + dw_3
                 w[pre_indices, post_indices] += dw
@@ -340,6 +466,9 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd, fig_labe
                 w[pre_indices, post_indices] = np.clip(w[pre_indices, post_indices], 0,
                                                    1)
 
+            '''
+            record keeping
+            '''
             v_rec[:, sim, trl, :] = v
             u_rec[:, sim, trl, :] = u
             g_rec[:, sim, trl, :] = g
@@ -357,7 +486,10 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd, fig_labe
 
     return v_rec, g_rec, w_rec, rpe, p, resp, cat, rt
 
-
+'''
+reloads previous simulation runs from disk to memory so they can be plotted or
+analysed without re-running the model
+'''
 def load_simulation(fig_label):
     v_rec = np.load('../output/model_spiking_' + fig_label + '_v.npy')
     g_rec = np.load('../output/model_spiking_' + fig_label + '_g.npy')
