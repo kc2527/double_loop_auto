@@ -885,8 +885,8 @@ lesioned_trials = []
 lesion_cell_inds = []
 
 n_simulations = 1
-n_trials = 4000
-probe_trial_onsets = [500, 1500, 3000]
+n_trials = 500
+probe_trial_onsets = [500]
 n_probe_trials = 100
 
 for rotation in [90, 180]:
