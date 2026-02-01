@@ -1,0 +1,11 @@
+# virtual env
+.venv/
+
+# macOS
+.DS_Store
+
+# Vim
+*.swp
+
+# Generated figures
+figures/
