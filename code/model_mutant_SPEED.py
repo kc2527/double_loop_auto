@@ -47,14 +47,21 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
 
     nmda_thresh = 0.0
 
-    # sub-cortical
+    # stage 1 sub-cortical
     alpha_w_vis_dms = 5e-10
     beta_w_vis_dms = 2e-10
     gamma_w_vis_dms = 0.0
 
-    # cortical
-    alpha_w_vis_premotor = 5e-11
-    beta_w_vis_premotor = 5e-11
+    # stage 2 sub-cortical
+    alpha_w_premotor_dls = 2e-15
+    beta_w_premotor_dls = 1e-15
+    gamma_w_premotor_dls = 0.0
+
+    # NOTE: incorrectly named here, but doesn't change anything because
+    # variable names that mattered were changed
+    # stage 1 cortical
+    alpha_w_vis_premotor = 8e-11
+    beta_w_vis_premotor = 8e-11
 
     vis_dim = 100
     vis_amp = 7
@@ -62,8 +69,8 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
     vis = np.zeros((vis_dim, vis_dim))
     w_vis_dms_A = np.zeros((vis_dim, vis_dim))
     w_vis_dms_B = np.zeros((vis_dim, vis_dim))
-    w_vis_pm_A = np.zeros((vis_dim, vis_dim))
-    w_vis_pm_B = np.zeros((vis_dim, vis_dim))
+    w_vis_motor_A = np.zeros((vis_dim, vis_dim))
+    w_vis_motor_B = np.zeros((vis_dim, vis_dim))
 
     cat = np.zeros((n_simulations, n_trials))
     resp = np.zeros((n_simulations, n_trials))
@@ -72,13 +79,15 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
     p = np.ones((n_simulations, n_trials)) * 0.5
     rpe = np.zeros((n_simulations, n_trials))
 
-    # NOTE: anything that indexes 4 -> 7 was a part of the 2 stage
-    # beware
     izp = np.array([
         [50, -80, -25, 40, 0.01, -20, -55, 150, 1],  # dms A 0 (MSN)
         [50, -80, -25, 40, 0.01, -20, -55, 150, 1],  # dms B 1 (MSN)
         [100, -60, -40, 35, 0.03, -2, -50, 100, 0.7],  # premotor A 2
         [100, -60, -40, 35, 0.03, -2, -50, 100, 0.7],  # premotor B 3
+        [50, -80, -25, 40, 0.01, -20, -55, 150, 1],  # dls A 4 (MSN)
+        [50, -80, -25, 40, 0.01, -20, -55, 150, 1],  # dls B 5 (MSN)
+        [100, -60, -40, 35, 0.03, -2, -50, 100, 0.7],  # motor A 6
+        [100, -60, -40, 35, 0.03, -2, -50, 100, 0.7],  # motor B 7
     ])
 
     C, vr, vt, vpeak, a, b, c, d, k = izp.T
@@ -89,6 +98,8 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
     # noise in units
     sig[:, 0] = 1
     sig[:, 1] = 1
+    sig[:, 4] = 1
+    sig[:, 5] = 1
 
     # lesion
     mu[np.ix_(lesioned_trials, lesion_cell_inds)] = lesion_mean
@@ -122,16 +133,15 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
     w_rec = np.zeros((n_cells, n_cells, n_simulations, n_trials))
     w_vis_dms_A_rec = np.zeros((vis_dim, vis_dim, n_simulations, n_trials))
     w_vis_dms_B_rec = np.zeros((vis_dim, vis_dim, n_simulations, n_trials))
-    w_vis_pm_A_rec = np.zeros((vis_dim, vis_dim, n_simulations, n_trials))
-    w_vis_pm_B_rec = np.zeros((vis_dim, vis_dim, n_simulations, n_trials))
+    w_vis_motor_A_rec = np.zeros((vis_dim, vis_dim, n_simulations, n_trials))
+    w_vis_motor_B_rec = np.zeros((vis_dim, vis_dim, n_simulations, n_trials))
 
     for sim in range(n_simulations):
 
         print(f"Simulation {sim + 1}/{n_simulations}")
 
-        # SPEED = vis -> striatum (dms) -> pm
-        
-        # sub-cortical
+        # mutant path: vis->dms->pm->dls->motor + vis->motor
+
         # vis->dms: fully connected
         w_vis_dms_A = np.random.uniform(0.4, 0.6, (vis_dim, vis_dim))
         w_vis_dms_B = np.random.uniform(0.4, 0.6, (vis_dim, vis_dim))
@@ -142,10 +152,21 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
         w[1, 2] = 0
         w[1, 3] = 0.04
 
-        # cortical
-        # vis->premotor: fully connected
-        w_vis_pm_A = np.random.uniform(0.001, 0.01, (vis_dim, vis_dim)) * 0
-        w_vis_pm_B = np.random.uniform(0.001, 0.01, (vis_dim, vis_dim)) * 0
+        # premotor->dls: fully connected
+        w[2, 4] = np.random.uniform(0.49, 0.51)
+        w[2, 5] = np.random.uniform(0.49, 0.51)
+        w[3, 4] = np.random.uniform(0.49, 0.51)
+        w[3, 5] = np.random.uniform(0.49, 0.51)
+
+        # dls->motor: one to one
+        w[4, 6] = 0.04
+        w[4, 7] = 0
+        w[5, 6] = 0
+        w[5, 7] = 0.04
+
+        # vis->motor: fully connected
+        w_vis_motor = np.random.uniform(0.001, 0.01, (vis_dim, vis_dim))
+        w_vis_motor = np.random.uniform(0.001, 0.01, (vis_dim, vis_dim))
 
         # lateral inhibition between DMS units
         w[0, 1] = -0.2
@@ -154,6 +175,10 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
         # lateral inhibition between PM units
         w[2, 3] = -0.01 * 0
         w[3, 2] = -0.01 * 0
+
+        # lateral inhibition between DLS units
+        w[4, 5] = -0.5
+        w[5, 4] = -0.5
 
         for trl in range(n_trials - 1):
 
@@ -188,12 +213,12 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
             I_ext[0, n_steps // 3:2 * n_steps // 3] = vis_dms_act_A
             I_ext[1, n_steps // 3:2 * n_steps // 3] = vis_dms_act_B
 
-            # define external inputs (visual input to PM layer)
-            vis_pm_act_A = np.dot(vis.flatten(), w_vis_pm_A.flatten())
-            vis_pm_act_B = np.dot(vis.flatten(), w_vis_pm_B.flatten())
+            # define external inputs (visual input to motor layer)
+            vis_motor_act_A = np.dot(vis.flatten(), w_vis_motor_A.flatten())
+            vis_motor_act_B = np.dot(vis.flatten(), w_vis_motor_B.flatten())
 
-            I_ext[2, n_steps // 3:2 * n_steps // 3] = vis_pm_act_A
-            I_ext[3, n_steps // 3:2 * n_steps // 3] = vis_pm_act_B
+            I_ext[2, n_steps // 3:2 * n_steps // 3] = vis_motor_act_A
+            I_ext[3, n_steps // 3:2 * n_steps // 3] = vis_motor_act_B
 
             for i in range(1, n_steps):
 
@@ -226,11 +251,11 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
                 spike[mask, i] = 1
 
                 # response
-                if (g[2, i] - g[3, i]) > resp_thresh:
+                if (g[6, i] - g[7, i]) > resp_thresh:
                     resp[sim, trl] = 1
                     rt[sim, trl] = i
                     break
-                elif (g[3, i] - g[2, i]) > resp_thresh:
+                elif (g[7, i] - g[6, i]) > resp_thresh:
                     resp[sim, trl] = 2
                     rt[sim, trl] = i
                     break
@@ -243,9 +268,9 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
             # pick a response if it hasn't happened already
             if rt[sim, trl] == 0:
                 rt[sim, trl] = i
-                if g[2, :].sum() > g[3, :].sum():
+                if g[6, :].sum() > g[7, :].sum():
                     resp[sim, trl] = 1
-                elif g[3, :].sum() > g[2, :].sum():
+                elif g[7, :].sum() > g[6, :].sum():
                     resp[sim, trl] = 2
                 else:
                     resp[sim, trl] = np.random.choice([1, 2])
@@ -295,34 +320,63 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
                     w_vis_dms_B[ii, jj] += dw_1 + dw_2 + dw_3
                     w_vis_dms_B[ii, jj] = np.clip(w_vis_dms_B[ii, jj], 0, 1)
 
-            # NOTE: 2-factor vis-premotor
-            pm_A = g[2, :].sum()
-            pm_B = g[3, :].sum()
+            # NOTE: 3-factor premotor-dls
+            synapses = np.array([(2, 4), (2, 5), (3, 4), (3, 5)])
+
+            # Extract presynaptic and postsynaptic indices
+            pre_indices = synapses[:, 0]
+            post_indices = synapses[:, 1]
+
+            # Compute presynaptic and postsynaptic activity sums
+            pre_activity = g[pre_indices, :].sum(axis=1)
+            post_activity = g[post_indices, :].sum(axis=1)
+
+            # Vectorized weight update components
+            dw_1 = alpha_w_premotor_dls * pre_activity * np.clip(
+                post_activity - nmda_thresh, 0, None) * np.clip(
+                    rpe[sim, trl], 0,
+                    None) * (1 - w[pre_indices, post_indices])
+            dw_2 = beta_w_premotor_dls * pre_activity * np.clip(
+                post_activity - nmda_thresh, 0, None) * np.clip(
+                    rpe[sim, trl], None, 0) * w[pre_indices, post_indices]
+            dw_3 = -gamma_w_premotor_dls * pre_activity * np.clip(
+                nmda_thresh - post_activity, 0, None) * w[pre_indices,
+                                                          post_indices]
+
+            # Apply the total weight change
+            dw = dw_1 + dw_2 + dw_3
+            w[pre_indices, post_indices] += dw
+            w[pre_indices,
+              post_indices] = np.clip(w[pre_indices, post_indices], 0, 1)
+
+            # NOTE: 2-factor vis-motor
+            motor_A = g[2, :].sum()
+            motor_B = g[3, :].sum()
 
             for ii in range(vis_dim):
                 for jj in range(vis_dim):
 
                     pre_activity = vis[ii, jj]
 
-                    post_activity = pm_A
+                    post_activity = motor_A
                     dw_1 = alpha_w_vis_premotor * pre_activity * np.clip(
                         post_activity - nmda_thresh, 0,
-                        None) * (1 - w_vis_pm_A[ii, jj])
+                        None) * (1 - w_vis_motor_A[ii, jj])
                     dw_2 = -beta_w_vis_premotor * pre_activity * np.clip(
-                        nmda_thresh - post_activity, 0, None) * w_vis_pm_A[ii,
+                        nmda_thresh - post_activity, 0, None) * w_vis_motor_A[ii,
                                                                            jj]
-                    w_vis_pm_A[ii, jj] += dw_1 + dw_2
-                    w_vis_pm_A[ii, jj] = np.clip(w_vis_pm_A[ii, jj], 0, 1)
+                    w_vis_motor_A[ii, jj] += dw_1 + dw_2
+                    w_vis_motor_A[ii, jj] = np.clip(w_vis_motor_A[ii, jj], 0, 1)
 
-                    post_activity = pm_B
+                    post_activity = motor_B
                     dw_1 = alpha_w_vis_premotor * pre_activity * np.clip(
                         post_activity - nmda_thresh, 0,
-                        None) * (1 - w_vis_pm_B[ii, jj])
+                        None) * (1 - w_vis_motor_B[ii, jj])
                     dw_2 = -beta_w_vis_premotor * pre_activity * np.clip(
-                        nmda_thresh - post_activity, 0, None) * w_vis_pm_B[ii,
+                        nmda_thresh - post_activity, 0, None) * w_vis_motor_B[ii,
                                                                            jj]
-                    w_vis_pm_B[ii, jj] += dw_1 + dw_2
-                    w_vis_pm_B[ii, jj] = np.clip(w_vis_pm_B[ii, jj], 0, 1)
+                    w_vis_motor_B[ii, jj] += dw_1 + dw_2
+                    w_vis_motor_B[ii, jj] = np.clip(w_vis_motor_B[ii, jj], 0, 1)
 
             v_rec[:, sim, trl, :] = v
             u_rec[:, sim, trl, :] = u
@@ -331,28 +385,28 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
             w_rec[:, :, sim, trl] = w
             w_vis_dms_A_rec[:, :, sim, trl] = w_vis_dms_A
             w_vis_dms_B_rec[:, :, sim, trl] = w_vis_dms_B
-            w_vis_pm_A_rec[:, :, sim, trl] = w_vis_pm_A
-            w_vis_pm_B_rec[:, :, sim, trl] = w_vis_pm_B
+            w_vis_motor_A_rec[:, :, sim, trl] = w_vis_motor_A
+            w_vis_motor_B_rec[:, :, sim, trl] = w_vis_motor_B
 
-    np.save('../output/model_SPEED_' + fig_label + '_v.npy', v_rec)
-    np.save('../output/model_SPEED_' + fig_label + '_g.npy', g_rec)
-    np.save('../output/model_SPEED_' + fig_label + '_w.npy', w_rec)
-    np.save('../output/model_SPEED_' + fig_label + '_rpe.npy', rpe)
-    np.save('../output/model_SPEED_' + fig_label + '_p.npy', p)
-    np.save('../output/model_SPEED_' + fig_label + '_r.npy', r)
-    np.save('../output/model_SPEED_' + fig_label + '_resp.npy', resp)
-    np.save('../output/model_SPEED_' + fig_label + '_cat.npy', cat)
-    np.save('../output/model_SPEED_' + fig_label + '_rt.npy', rt)
-    np.save('../output/model_SPEED_' + fig_label + 'w_vis_dms_A_rec.npy',
+    np.save('../output/model_mutant_SPEED_' + fig_label + '_v.npy', v_rec)
+    np.save('../output/model_mutant_SPEED_' + fig_label + '_g.npy', g_rec)
+    np.save('../output/model_mutant_SPEED_' + fig_label + '_w.npy', w_rec)
+    np.save('../output/model_mutant_SPEED_' + fig_label + '_rpe.npy', rpe)
+    np.save('../output/model_mutant_SPEED_' + fig_label + '_p.npy', p)
+    np.save('../output/model_mutant_SPEED_' + fig_label + '_r.npy', r)
+    np.save('../output/model_mutant_SPEED_' + fig_label + '_resp.npy', resp)
+    np.save('../output/model_mutant_SPEED_' + fig_label + '_cat.npy', cat)
+    np.save('../output/model_mutant_SPEED_' + fig_label + '_rt.npy', rt)
+    np.save('../output/model_mutant_SPEED_' + fig_label + 'w_vis_dms_A_rec.npy',
             w_vis_dms_A_rec)
-    np.save('../output/model_SPEED_' + fig_label + 'w_vis_dms_B_rec.npy',
+    np.save('../output/model_mutant_SPEED_' + fig_label + 'w_vis_dms_B_rec.npy',
             w_vis_dms_B_rec)
-    np.save('../output/model_SPEED_' + fig_label + 'w_vis_pm_A_rec.npy',
-            w_vis_pm_A_rec)
-    np.save('../output/model_SPEED_' + fig_label + 'w_vis_pm_B_rec.npy',
-            w_vis_pm_B_rec)
+    np.save('../output/model_mutant_SPEED_' + fig_label + 'w_vis_motor_A_rec.npy',
+            w_vis_motor_A_rec)
+    np.save('../output/model_mutant_SPEED_' + fig_label + 'w_vis_motor_B_rec.npy',
+            w_vis_motor_B_rec)
 
-    ds.to_csv('../output/model_SPEED_' + fig_label + '_ds.csv')
+    ds.to_csv('../output/model_mutant_SPEED_' + fig_label + '_ds.csv')
 
     return v_rec, g_rec, w_rec, rpe, p, resp, cat, rt
 
@@ -464,26 +518,26 @@ def make_stim_cats(n_stimuli_per_category=2000):
 
 
 def load_simulation(fig_label):
-    v_rec = np.load('../output/model_SPEED_' + fig_label + '_v.npy')
-    g_rec = np.load('../output/model_SPEED_' + fig_label + '_g.npy')
-    w_rec = np.load('../output/model_SPEED_' + fig_label + '_w.npy')
-    rpe = np.load('../output/model_SPEED_' + fig_label + '_rpe.npy')
-    p = np.load('../output/model_SPEED_' + fig_label + '_p.npy')
-    r = np.load('../output/model_SPEED_' + fig_label + '_r.npy')
-    resp = np.load('../output/model_SPEED_' + fig_label + '_resp.npy')
-    cat = np.load('../output/model_SPEED_' + fig_label + '_cat.npy')
-    rt = np.load('../output/model_SPEED_' + fig_label + '_rt.npy')
-    w_vis_dms_A_rec = np.load('../output/model_SPEED_' + fig_label +
+    v_rec = np.load('../output/model_mutant_SPEED_' + fig_label + '_v.npy')
+    g_rec = np.load('../output/model_mutant_SPEED_' + fig_label + '_g.npy')
+    w_rec = np.load('../output/model_mutant_SPEED_' + fig_label + '_w.npy')
+    rpe = np.load('../output/model_mutant_SPEED_' + fig_label + '_rpe.npy')
+    p = np.load('../output/model_mutant_SPEED_' + fig_label + '_p.npy')
+    r = np.load('../output/model_mutant_SPEED_' + fig_label + '_r.npy')
+    resp = np.load('../output/model_mutant_SPEED_' + fig_label + '_resp.npy')
+    cat = np.load('../output/model_mutant_SPEED_' + fig_label + '_cat.npy')
+    rt = np.load('../output/model_mutant_SPEED_' + fig_label + '_rt.npy')
+    w_vis_dms_A_rec = np.load('../output/model_mutant_SPEED_' + fig_label +
                               'w_vis_dms_A_rec.npy')
-    w_vis_dms_B_rec = np.load('../output/model_SPEED_' + fig_label +
+    w_vis_dms_B_rec = np.load('../output/model_mutant_SPEED_' + fig_label +
                               'w_vis_dms_B_rec.npy')
-    w_vis_pm_A_rec = np.load('../output/model_SPEED_' + fig_label +
-                             'w_vis_pm_A_rec.npy')
-    w_vis_pm_B_rec = np.load('../output/model_SPEED_' + fig_label +
-                             'w_vis_pm_B_rec.npy')
-    ds = pd.read_csv('../output/model_SPEED_' + fig_label + '_ds.csv')
+    w_vis_motor_A_rec = np.load('../output/model_mutant_SPEED_' + fig_label +
+                             'w_vis_motor_A_rec.npy')
+    w_vis_motor_B_rec = np.load('../output/model_mutant_SPEED_' + fig_label +
+                             'w_vis_motor_B_rec.npy')
+    ds = pd.read_csv('../output/model_mutant_SPEED_' + fig_label + '_ds.csv')
 
-    return v_rec, g_rec, w_rec, rpe, p, r, resp, cat, rt, w_vis_dms_A_rec, w_vis_dms_B_rec, w_vis_pm_A_rec, w_vis_pm_B_rec, ds
+    return v_rec, g_rec, w_rec, rpe, p, r, resp, cat, rt, w_vis_dms_A_rec, w_vis_dms_B_rec, w_vis_motor_A_rec, w_vis_motor_B_rec, ds
 
 
 def plot_simulation_2():
@@ -580,7 +634,8 @@ def plot_simulation_2():
                 legend=None,
                 ax=ax[0,2])
     plt.tight_layout()
-    plt.savefig('../figures/barplot_90_vs_180_SPEED.png')
+    plt.savefig('../figures/barplot_90_vs_180_mutant_SPEED.png')
+
     # plt.show()
 
     fig, ax = plt.subplots(3, 2, squeeze=False, figsize=(8, 12))
@@ -633,7 +688,7 @@ def plot_simulation_2():
     ax[2, 0].set_title('90 Degree Rotation Day 3')
     ax[2, 1].set_title('180 Degree Rotation Day 3')
     plt.tight_layout()
-    plt.savefig('../figures/lineplot_90_vs_180_SPEED.png')
+    plt.savefig('../figures/lineplot_90_vs_180_mutant.png')
 
 
 def plot_simulation(fig_label):
@@ -651,8 +706,8 @@ def plot_simulation(fig_label):
     rt = res[8]
     w_vis_dms_A_rec = res[9]
     w_vis_dms_B_rec = res[10]
-    w_vis_pm_A_rec = res[11]
-    w_vis_pm_B_rec = res[12]
+    w_vis_motor_A_rec = res[11]
+    w_vis_motor_B_rec = res[12]
 
     n_trials = v_rec.shape[2]
 
@@ -665,14 +720,14 @@ def plot_simulation(fig_label):
     mean_accuracy = (resp == cat).mean(axis=0)
 
     # Define pathways for A and B
-    pathway_A = [0, 2]  # DMS A, premotor A, DLS A, motor A
-    pathway_B = [1, 3]  # DMS B, premotor B, DLS B, motor B
+    pathway_A = [0, 2, 4, 6]  # DMS A, premotor A, DLS A, motor A
+    pathway_B = [1, 3, 5, 7]  # DMS B, premotor B, DLS B, motor B
 
     pathway_A_names = ['DMS A', 'Premotor A', 'DLS A', 'Motor A']
     pathway_B_names = ['DMS B', 'Premotor B', 'DLS B', 'Motor B']
 
     # Create figure and grid of subplots
-    fig, axes = plt.subplots(4, 4, figsize=(20, 15))
+    fig, axes = plt.subplots(5, 4, figsize=(20, 15))
     trials = np.arange(n_trials)
 
     # Column 1: A pathway
@@ -710,21 +765,21 @@ def plot_simulation(fig_label):
 
     # plot premotor to dls weights
     axx = axes[1, 2]
-    # axx.plot(tt, w_rec[2, 4, -1, :], marker='o', label='(PM A to DLS A)')
-    # axx.plot(tt, w_rec[2, 5, -1, :], marker='o', label='(PM A to DLS B)')
-    # axx.plot(tt, w_rec[3, 4, -1, :], marker='o', label='(PM B to DLS A)')
-    # axx.plot(tt, w_rec[3, 5, -1, :], marker='o', label='(PM B to DLS B)')
-    # axx.set_xticks([])
-    # axx.set_ylim(-0.1, 1.5)
-    # axx.legend(loc='upper center', ncol=2)
-    # ax.set_title('Stage 2 subcortical')
+    axx.plot(tt, w_rec[2, 4, -1, :], marker='o', label='(PM A to DLS A)')
+    axx.plot(tt, w_rec[2, 5, -1, :], marker='o', label='(PM A to DLS B)')
+    axx.plot(tt, w_rec[3, 4, -1, :], marker='o', label='(PM B to DLS A)')
+    axx.plot(tt, w_rec[3, 5, -1, :], marker='o', label='(PM B to DLS B)')
+    axx.set_xticks([])
+    axx.set_ylim(-0.1, 1.5)
+    axx.legend(loc='upper center', ncol=2)
+    ax.set_title('Stage 2 subcortical')
 
     # plot vis to premotor weights (average over all synapses)
     axx = axes[2, 2]
-    w_vis_pm_A_avg = np.mean(w_vis_pm_A_rec[:, :, -1, :], axis=(0, 1))
-    w_vis_pm_B_avg = np.mean(w_vis_pm_B_rec[:, :, -1, :], axis=(0, 1))
-    axx.plot(tt, w_vis_pm_A_avg, marker='o', label='w_vis_pm_A_avg')
-    axx.plot(tt, w_vis_pm_B_avg, marker='o', label='w_vis_pm_B_avg')
+    w_vis_motor_A_avg = np.mean(w_vis_motor_A_rec[:, :, -1, :], axis=(0, 1))
+    w_vis_motor_B_avg = np.mean(w_vis_motor_B_rec[:, :, -1, :], axis=(0, 1))
+    axx.plot(tt, w_vis_motor_A_avg, marker='o', label='w_vis_motor_A_avg')
+    axx.plot(tt, w_vis_motor_B_avg, marker='o', label='w_vis_motor_B_avg')
     axx.set_ylim(-0.1, 1.5)
     axx.legend(loc='upper center', ncol=2)
     axx.set_xticks([])
@@ -732,14 +787,14 @@ def plot_simulation(fig_label):
 
     # plot premotor to motor weights
     axx = axes[3, 2]
-    # axx.plot(tt, w_rec[2, 6, -1, :], marker='o', label='(PM A to M1 A)')
-    # axx.plot(tt, w_rec[2, 7, -1, :], marker='o', label='(PM A to M1 B)')
-    # axx.plot(tt, w_rec[3, 6, -1, :], marker='o', label='(PM B to M1 A)')
-    # axx.plot(tt, w_rec[3, 7, -1, :], marker='o', label='(PM B to M1 B)')
-    # axx.set_xticks([])
-    # axx.set_ylim(-0.1, 1.5)
-    # axx.legend(loc='upper center', ncol=2)
-    # ax.set_title('Stage 2 Cortical')
+    axx.plot(tt, w_rec[2, 6, -1, :], marker='o', label='(PM A to M1 A)')
+    axx.plot(tt, w_rec[2, 7, -1, :], marker='o', label='(PM A to M1 B)')
+    axx.plot(tt, w_rec[3, 6, -1, :], marker='o', label='(PM B to M1 A)')
+    axx.plot(tt, w_rec[3, 7, -1, :], marker='o', label='(PM B to M1 B)')
+    axx.set_xticks([])
+    axx.set_ylim(-0.1, 1.5)
+    axx.legend(loc='upper center', ncol=2)
+    ax.set_title('Stage 2 Cortical')
 
     # Column 4: RPE, prediction, and accuracy
     # Plot RPE and Prediction
@@ -800,24 +855,24 @@ def plot_simulation(fig_label):
 
     # plot vis to premotor weights (current trial)
     axx = axes[-1][2]
-    im2 = axx.imshow(w_vis_pm_A_rec[:, :, -1, -2], cmap="viridis")
+    im2 = axx.imshow(w_vis_motor_A_rec[:, :, -1, -2], cmap="viridis")
     axx.invert_yaxis()
     plt.colorbar(im2, ax=axx, fraction=0.046, pad=0.04)
     axx.set_xticks([])
     axx.set_yticks([])
-    axx.set_title("w_vis_pm_A (current)")
+    axx.set_title("w_vis_motor_A (current)")
 
     axx = axes[-1][3]
-    im3 = axx.imshow(w_vis_pm_B_rec[:, :, -1, -2], cmap="viridis")
+    im3 = axx.imshow(w_vis_motor_B_rec[:, :, -1, -2], cmap="viridis")
     axx.invert_yaxis()
     plt.colorbar(im3, ax=axx, fraction=0.046, pad=0.04)
     axx.set_xticks([])
     axx.set_yticks([])
-    axx.set_title("w_vis_pm_B (current)")
+    axx.set_title("w_vis_motor_B (current)")
 
     # Adjust layout and show plot
     plt.tight_layout()
-    plt.savefig('../figures/model_SPEED_' + fig_label + '.png')
+    plt.savefig('../figures/model_mutant_SPEED_' + fig_label + '.png')
     plt.close()
 
 
@@ -827,8 +882,8 @@ lesioned_trials = []
 lesion_cell_inds = []
 
 n_simulations = 1
-n_trials = 1000
-probe_trial_onsets = [300, 800]
+n_trials = 5000
+probe_trial_onsets = [1000, 2500, 4000]
 n_probe_trials = 100
 
 for rotation in [90, 180]:
@@ -838,4 +893,5 @@ for rotation in [90, 180]:
              n_simulations)
     plot_simulation(fig_label)
 
-# plot_simulation_2()
+plot_simulation_2()
+
