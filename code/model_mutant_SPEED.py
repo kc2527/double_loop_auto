@@ -58,10 +58,10 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
     gamma_w_premotor_dls = 0.0
 
     # NOTE: incorrectly named here, but doesn't change anything because
-    # variable names that mattered were changed
+    # variable names that mattered in the w change eqs were changed
     # stage 1 cortical
-    alpha_w_vis_premotor = 8e-11
-    beta_w_vis_premotor = 8e-11
+    alpha_w_vis_premotor = 2e-12
+    beta_w_vis_premotor = 2e-12
 
     vis_dim = 100
     vis_amp = 7
@@ -614,7 +614,7 @@ def plot_simulation_2():
     cost = pre - post
     cost_df = cost.reset_index(name='cost')
 
-    fig, ax = plt.subplots(1, 3, squeeze=False, figsize=(8, 12))
+    fig, ax = plt.subplots(1, 3, squeeze=False, figsize=(12, 8))
     sns.barplot(data=cost_df[cost_df['day'] == 1],
                 x='rotation',
                 y='cost',
@@ -882,8 +882,8 @@ lesioned_trials = []
 lesion_cell_inds = []
 
 n_simulations = 1
-n_trials = 5000
-probe_trial_onsets = [1000, 2500, 4000]
+n_trials = 8000
+probe_trial_onsets = [3000, 5000, 7000]
 n_probe_trials = 100
 
 for rotation in [90, 180]:

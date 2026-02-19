@@ -827,8 +827,8 @@ lesioned_trials = []
 lesion_cell_inds = []
 
 n_simulations = 1
-n_trials = 1000
-probe_trial_onsets = [300, 800]
+n_trials = 3000
+probe_trial_onsets = [300, 1000, 2300]
 n_probe_trials = 100
 
 for rotation in [90, 180]:
@@ -838,4 +838,4 @@ for rotation in [90, 180]:
              n_simulations)
     plot_simulation(fig_label)
 
-# plot_simulation_2()
+plot_simulation_2()

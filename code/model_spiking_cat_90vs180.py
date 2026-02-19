@@ -641,6 +641,38 @@ def plot_simulation_2():
     block_size = 50
     ds['block'] = ((ds['trial'] - 1) // block_size) + 1
 
+
+    # NOTE: my attempt at calculating and plotting
+    # calculating cost
+    pre = ds[ds['prepost'] == 'pre'].groupby(['day', 'rotation'])['acc'].mean()
+    post = ds[ds['prepost'] == 'post'].groupby(['day', 'rotation'])['acc'].mean()
+
+    cost = pre - post
+    cost_df = cost.reset_index(name='cost')
+
+    fig, ax = plt.subplots(1, 3, squeeze=False, figsize=(8, 12))
+    sns.barplot(data=cost_df[cost_df['day'] == 1],
+                x='rotation',
+                y='cost',
+                hue='rotation',
+                legend=None,
+                ax=ax[0,0])
+    sns.barplot(data=cost_df[cost_df['day'] == 2],
+                x='rotation',
+                y='cost',
+                hue='rotation',
+                legend=None,
+                ax=ax[0,1])
+    sns.barplot(data=cost_df[cost_df['day'] == 3],
+                x='rotation',
+                y='cost',
+                hue='rotation',
+                legend=None,
+                ax=ax[0,2])
+    plt.tight_layout()
+    plt.savefig('../figures/barplot_90_vs_180_2xcortical.png')
+
+
     fig, ax = plt.subplots(3, 2, squeeze=False, figsize=(8, 12))
     sns.lineplot(data=ds[(ds['rotation'] == 90) & (ds['day'] == 1)],
                  x='block',
@@ -691,7 +723,7 @@ def plot_simulation_2():
     ax[2, 0].set_title('90 Degree Rotation Day 3')
     ax[2, 1].set_title('180 Degree Rotation Day 3')
     plt.tight_layout()
-    plt.savefig('../figures/barplot_90_vs_108.png')
+    plt.savefig('../figures/lineplot_90_vs_180_2xcortical.png')
 
 
 def plot_simulation(fig_label):
