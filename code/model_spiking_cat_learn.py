@@ -597,7 +597,7 @@ def plot_simulation_2(fig_label):
     plt.show()
 
 n_simulations = 1
-n_trials = 500
+n_trials = 10
 
 lesioned_trials = []
 lesion_cell_inds = []
