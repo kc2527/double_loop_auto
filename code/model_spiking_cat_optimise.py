@@ -502,6 +502,8 @@ def simulate_model(params, *args):
 
     return acc
 
+# ============================================================================== #
+
 def objective_function(params, *args):
     """Objective function based on 90 degree vs 180 degree probes"""
 
@@ -513,11 +515,38 @@ def objective_function(params, *args):
     args = (n_simulations, n_trials, probe_trial_onsets, n_probe_trials, 180)
     acc_180 = simulate_model(params, *args)
 
+                        # acc_by_trial
     cost90 = probe_costs(acc_90, probe_trial_onsets, n_probe_trials)
     cost180 = probe_costs(acc_180, probe_trial_onsets, n_probe_trials)
 
     loss = constraint_loss(cost90, cost180)
+    
+    print("loss = ", loss)
 
+    # fig, ax = plt.subplots(1, 2, squeeze=False, figsize=(15, 4))
+    # 
+    # # 1) accuracy across trials (seaborn smooth)
+    # sns.regplot(x=np.arange(len(acc_90)), y=acc_90, lowess=True, scatter=False, ax=ax[0, 0], label="90")
+    # sns.regplot(x=np.arange(len(acc_180)), y=acc_180, lowess=True, scatter=False, ax=ax[0, 0], label="180")
+    # ax[0, 0].set_title("Smoothed accuracy")
+    # ax[0, 0].set_xlabel("Trial")
+    # ax[0, 0].set_ylabel("Acc")
+    # ax[0, 0].legend()
+    # 
+    # # 2) probe costs (bar plot)
+    # cost_long = pd.DataFrame({
+    #     "probe": np.r_[np.arange(len(cost90)), np.arange(len(cost180))],
+    #     "condition": ["90"] * len(cost90) + ["180"] * len(cost180),
+    #     "cost": np.r_[cost90, cost180]
+    # })
+    # sns.barplot(data=cost_long, x="probe", y="cost", hue="condition", ax=ax[0, 1])
+    # ax[0, 1].set_title("Probe costs")
+    # ax[0, 1].set_xlabel("Probe index")
+    # ax[0, 1].set_ylabel("Probe - Pre")
+    # 
+    # plt.tight_layout()
+    # plt.show()
+    
     return loss
 
 
@@ -525,6 +554,7 @@ def probe_costs(acc_by_trial, probe_trial_onsets, n_probe_trials):
     """Converts accuracy by trial into probe costs at each probe onset."""
     costs = np.empty(len(probe_trial_onsets), dtype=float)
 
+    # t = probe_trial_onsets
     for i, t in enumerate(probe_trial_onsets):
         pre_start = t - n_probe_trials
         pre_end = t
@@ -556,28 +586,44 @@ def constraint_loss(cost_90, cost_180):
     Goal 5:
         Cost at 180 should increase from the second probe to the third probe.
     """
+    # hinge penalty means that penalty is 0 on one side of the boundary and
+    # grows only on the bad side (i.e., if cost_90 > cost_180, np.maximum() (a
+    # -ve number) returns 0, if it is the other way around (+ve number),
+    # np.maximum() returns the positive value)
+
+    # equality penalty used squared difference (**2), so if values are =, then
+    # diff is 0 and penalty is 0. if the diff is small, then small +ve penalty
+    # if they differ by a lot, then there's a larger penalty (grows
+    # quadratically). also means if it is -ve, it will become a positive.
+
+    # if these goals are violated, they return +ve valies and these are summed
+    # in the final return statement (return goal_violations.sum()). the larger
+    # that this summed value is -> larger loss -> optimiser is pushed away from 
+    # those parameters
+
     # goal 1 (hinge): want cost_90[0] > cost_180[0]
     goal_1_violation = np.maximum(0.0, cost_180[0] - cost_90[0])
 
-    # goal 2 (hinge): want cost_90[1] > cost_90[0]
-    goal_2_violation = np.maximum(0.0, cost_90[0] - cost_90[1])
+    # NOTE: commented out extra goals -- only need 1 for Cantwell
+    ## goal 2 (hinge): want cost_90[1] > cost_90[0]
+    #goal_2_violation = np.maximum(0.0, cost_90[0] - cost_90[1])
 
-    # goal 3 (equality): want cost_180[1] == cost_180[0]
-    goal_3_violation = (cost_180[1] - cost_180[0])**2
+    ## goal 3 (equality): want cost_180[1] == cost_180[0]
+    #goal_3_violation = (cost_180[1] - cost_180[0])**2
 
-    # goal 4 (equality): want cost_90[2] == cost_90[1]
-    goal_4_violation = (cost_90[2] - cost_90[1])**2
+    ## goal 4 (equality): want cost_90[2] == cost_90[1]
+    #goal_4_violation = (cost_90[2] - cost_90[1])**2
 
-    # goal 5 (hinge): want cost_180[2] > cost_180[1]
-    goal_5_violation = np.maximum(0.0, cost_180[1] - cost_180[2])
+    ## goal 5 (hinge): want cost_180[2] > cost_180[1]
+    #goal_5_violation = np.maximum(0.0, cost_180[1] - cost_180[2])
 
     # Vectorized aggregation (no math change): sum all goal violations
     goal_violations = np.array([
         goal_1_violation,
-        goal_2_violation,
-        goal_3_violation,
-        goal_4_violation,
-        goal_5_violation,
+        # goal_2_violation,
+        # goal_3_violation,
+        # goal_4_violation,
+        # goal_5_violation,
     ],
                                dtype=float)
 
@@ -587,6 +633,7 @@ def constraint_loss(cost_90, cost_180):
 def optimize_model(args):
     """Optimize model parameters using differential evolution."""
 
+    # simulate  model parameters which will be explored by the model
     bounds_pairs = [
         (0.05, 0.05),  # alpha_critic
         (0, 1),  # alpha_w_vis_dms
@@ -606,11 +653,17 @@ def optimize_model(args):
         (0, 0),  # noise_dls
     ]
 
-    # Turned off search for noise, lat inhib, alpha critic, and cortical projections
+    # fixed search for noise, lat inhib, alpha critic, and cortical projections
+    # searching alpha and beta
 
     lb = [b[0] for b in bounds_pairs]
     ub = [b[1] for b in bounds_pairs]
     bounds = Bounds(lb, ub)
+
+    # NOTE: So result calls differential evolutionI() which then calls
+    # objective_function
+    # objective_function() then calls simulate_model, probe_costs, and
+    # constraint_loss
 
     # result = differential_evolution(
     #     objective_function,
@@ -633,10 +686,11 @@ def optimize_model(args):
         objective_function,
         bounds,
         args=args,
-        maxiter=20,
-        popsize=6,
+        # maxiter=1,
+        popsize=10,
+        disp=True,
         polish=False,
-        workers=-1,
+        workers=2,
     )
 
     # # local refinement
@@ -658,13 +712,18 @@ if __name__ == "__main__":
     np.random.seed(1)
 
     # NOTE: args useful everywhere
+    # NOTE: changed for Cantwell rep
     n_simulations = 1
-    n_trials = 10
-    probe_trial_onsets = [3, 6, 9]
-    n_probe_trials = 2
+    n_trials = 100
+    probe_trial_onsets = [100]
+    n_probe_trials = 20
     args = (n_simulations, n_trials, probe_trial_onsets, n_probe_trials)
 
     # NOTE: optimize model
+    # optimise_model returns --> result.x (goes into optimized_params) and 
+    # result.fun (goes into optimized_value)
+    # optimized_params is then used to save/load results, which can then be run
+    # to inspect the results below
     optimized_params, optimized_value = optimize_model(args)
     np.save("../output/optimized_params.npy", optimized_params)
 
@@ -687,3 +746,41 @@ if __name__ == "__main__":
     plt.legend()
     plt.tight_layout()
     plt.show()
+
+
+# ================================================================
+
+"""
+# === Replicating Cantwell (2015) === #
+## parameters
+* all parameters were fixed except for learning rates
+* 4 learning rates (LTP and LTD for each stage) were optimised
+    - vis and dms
+    - premotor and dls
+* vis -> dms weights: random uniform between [0.1, 0.2]
+* premotor -> dls weights: random uniform between [1.75, 1.85]
+
+## structure
+* after parameter optimisation, 100 sims were run with best fitting parameter
+* model predictions were computed by taking mean across 100 sims
+* 12 blocks of 50 trials
+* 'probe' trials from block 9 (from trial 400 to 600)
+
+---
+# - What this Means for Our Model - #
+* change n_trials to 600
+* change n_probe_onset to 400
+* change n_probe_trials to 200
+* keep all parameters (except for alpha and beta) fixed 
+
+--> can we just use the alpha and beta vals from the paper?
+--> how do we know what the other values are fixed at?
+
+---
+# - Constraint Loss Goal - # 
+* Cost at 90 should be greater than cost at 180 (theoretically)
+* In the paper, they say that the learning rates were optimised to extract
+  the best possible accuracy across both conditions (i.e., maximise accuracy)
+    - vague explanation
+"""
+
