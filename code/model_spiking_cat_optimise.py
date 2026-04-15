@@ -686,11 +686,11 @@ def optimize_model(args):
         objective_function,
         bounds,
         args=args,
-        # maxiter=1,
+        maxiter=4,
         popsize=10,
         disp=True,
         polish=False,
-        workers=2,
+        workers=3,
     )
 
     # # local refinement
