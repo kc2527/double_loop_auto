@@ -55,12 +55,12 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
 
     # stage 1 sub-cortical
     alpha_w_vis_dms = 8e-9
-    beta_w_vis_dms = 2e-11
+    beta_w_vis_dms = 8e-11
     gamma_w_vis_dms = 0.0
 
     # stage 2 sub-cortical
-    alpha_w_premotor_dls = 2e-15
-    beta_w_premotor_dls = 1e-15
+    alpha_w_premotor_dls = 2e-14
+    beta_w_premotor_dls = 8e-16
     gamma_w_premotor_dls = 0.0
 
     # stage 1 cortical
@@ -117,7 +117,7 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
 
     psp_amp = 1e5
     psp_decay = 200
-    resp_thresh = 3e2
+    resp_thresh = 8e4
 
     # input into cells from the periphery
     I_ext = np.zeros((n_cells, n_steps))
@@ -887,11 +887,11 @@ lesioned_trials = []
 lesion_cell_inds = []
 
 n_simulations = 1
-n_trials = 100
-probe_trial_onsets = [100]
-n_probe_trials = 20
+n_trials = 120
+probe_trial_onsets = [120]
+n_probe_trials = 50
 
-for rotation in [90]:
+for rotation in [90, 180]:
     fig_label = str(rotation)
     simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
              fig_label, rotation, probe_trial_onsets, n_probe_trials, n_trials,
