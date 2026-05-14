@@ -514,10 +514,10 @@ def objective_function(params, *args):
     acc_180 = simulate_model(params, *args)
 
                         # acc_by_trial
-    cost90 = probe_costs(acc_90, probe_trial_onsets, n_probe_trials)
-    cost180 = probe_costs(acc_180, probe_trial_onsets, n_probe_trials)
+    cost90, pre90 = probe_costs(acc_90, probe_trial_onsets, n_probe_trials)
+    cost180, pre180 = probe_costs(acc_180, probe_trial_onsets, n_probe_trials)
 
-    loss = constraint_loss(cost90, cost180)
+    loss = constraint_loss(cost90, cost180, pre90, pre180)
     
     print("loss = ", loss)
 
@@ -551,6 +551,7 @@ def objective_function(params, *args):
 def probe_costs(acc_by_trial, probe_trial_onsets, n_probe_trials):
     """Converts accuracy by trial into probe costs at each probe onset."""
     costs = np.empty(len(probe_trial_onsets), dtype=float)
+    pre_accs = np.empty(len(probe_trial_onsets), dtype=float)
 
     # t = probe_trial_onsets
     for i, t in enumerate(probe_trial_onsets):
@@ -561,11 +562,12 @@ def probe_costs(acc_by_trial, probe_trial_onsets, n_probe_trials):
         pre_acc = acc_by_trial[pre_start:pre_end].mean()
         probe_acc = acc_by_trial[t:probe_end].mean()
         costs[i] = probe_acc - pre_acc
+        pre_accs[i] = pre_acc
 
-    return costs
+    return costs, pre_accs
 
 
-def constraint_loss(cost_90, cost_180):
+def constraint_loss(cost_90, cost_180, pre_90, pre_180):
     """
     Optimization goals:
 
@@ -583,6 +585,9 @@ def constraint_loss(cost_90, cost_180):
 
     Goal 5:
         Cost at 180 should increase from the second probe to the third probe.
+
+    Goal 6: 
+        Pre-probe accuracy should be greater than 75%.
     """
     # hinge penalty means that penalty is 0 on one side of the boundary and
     # grows only on the bad side (i.e., if cost_90 > cost_180, np.maximum() (a
@@ -615,6 +620,10 @@ def constraint_loss(cost_90, cost_180):
     ## goal 5 (hinge): want cost_180[2] > cost_180[1]
     #goal_5_violation = np.maximum(0.0, cost_180[1] - cost_180[2])
 
+    # goal 6 (hinge): want pre_acc >= 75%
+    goal_6_violation = (np.maximum(0.0, 0.75 - pre_90[0]) 
+                        + np.maximum(0.0, 0.75 - pre_180[0]))
+
     # Vectorized aggregation (no math change): sum all goal violations
     goal_violations = np.array([
         goal_1_violation,
@@ -622,6 +631,7 @@ def constraint_loss(cost_90, cost_180):
         # goal_3_violation,
         # goal_4_violation,
         # goal_5_violation,
+        goal_6_violation
     ],
                                dtype=float)
 
