@@ -410,12 +410,12 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
             post_activity = np.full_like(pre_activity, pm_A)
             
             dw_1 = alpha_w_vis_premotor * pre_activity * np.clip(
-                post_activity - nmda_thresh, 0, None) * np.clip(
-                    rpe[sim, trl], 0, None) * (1 - w_vis_pm_A[pre_indices, post_indices])
+                post_activity - nmda_thresh, 0,
+                None) * (1 - w_vis_pm_A[pre_indices, post_indices])
             
-            dw_2 = beta_w_vis_premotor * pre_activity * np.clip(
-                post_activity - nmda_thresh, 0, None) * np.clip(
-                    rpe[sim, trl], None, 0) * w_vis_pm_A[pre_indices, post_indices]
+            dw_2 = -beta_w_vis_premotor * pre_activity * np.clip(
+                nmda_thresh - post_activity, 0, None) * w_vis_pm_A[pre_indices,
+                                                                   post_indices]
             
             dw = dw_1 + dw_2
             w_vis_pm_A[pre_indices, post_indices] += dw
@@ -427,12 +427,12 @@ def simulate(lesioned_trials, lesion_cell_inds, lesion_mean, lesion_sd,
             post_activity = np.full_like(pre_activity, pm_B)
             
             dw_1 = alpha_w_vis_premotor * pre_activity * np.clip(
-                post_activity - nmda_thresh, 0, None) * np.clip(
-                    rpe[sim, trl], 0, None) * (1 - w_vis_pm_B[pre_indices, post_indices])
+                post_activity - nmda_thresh, 0,
+                None) * (1 - w_vis_pm_B[pre_indices, post_indices])
             
-            dw_2 = beta_w_vis_premotor * pre_activity * np.clip(
-                post_activity - nmda_thresh, 0, None) * np.clip(
-                    rpe[sim, trl], None, 0) * w_vis_pm_B[pre_indices, post_indices]
+            dw_2 = -beta_w_vis_premotor * pre_activity * np.clip(
+                nmda_thresh - post_activity, 0, None) * w_vis_pm_B[pre_indices,
+                                                                   post_indices]
             
             dw = dw_1 + dw_2
             w_vis_pm_B[pre_indices, post_indices] += dw

@@ -377,37 +377,36 @@ def simulate_model(params, *args):
             # NOTE: 3-factor vis-dms
             dms_A = g[0, :].sum()
             dms_B = g[1, :].sum()
+            pre_activity = vis
+            pre_indices, post_indices = np.indices(pre_activity.shape)
 
-            for ii in range(vis_dim):
-                for jj in range(vis_dim):
+            # A channel
+            post_activity = np.full_like(pre_activity, dms_A)
+            dw_1 = alpha_w_vis_dms * pre_activity * np.clip(
+                post_activity - nmda_thresh, 0, None) * np.clip(
+                    rpe[sim, trl], 0, None) * (1 - w_vis_dms_A[pre_indices, post_indices])
+            dw_2 = beta_w_vis_dms * pre_activity * np.clip(
+                post_activity - nmda_thresh, 0, None) * np.clip(
+                    rpe[sim, trl], None, 0) * w_vis_dms_A[pre_indices, post_indices]
+            dw_3 = -gamma_w_vis_dms * pre_activity * np.clip(
+                nmda_thresh - post_activity, 0, None) * w_vis_dms_A[pre_indices, post_indices]
+            w_vis_dms_A[pre_indices, post_indices] += dw_1 + dw_2 + dw_3
+            w_vis_dms_A[pre_indices, post_indices] = np.clip(
+                w_vis_dms_A[pre_indices, post_indices], 0, 1)
 
-                    pre_activity = vis[ii, jj]
-
-                    post_activity = dms_A
-                    dw_1 = alpha_w_vis_dms * pre_activity * np.clip(
-                        post_activity - nmda_thresh, 0, None) * np.clip(
-                            rpe[sim, trl], 0, None) * (1 - w_vis_dms_A[ii, jj])
-                    dw_2 = beta_w_vis_dms * pre_activity * np.clip(
-                        post_activity - nmda_thresh, 0, None) * np.clip(
-                            rpe[sim, trl], None, 0) * w_vis_dms_A[ii, jj]
-                    dw_3 = -gamma_w_vis_dms * pre_activity * np.clip(
-                        nmda_thresh - post_activity, 0, None) * w_vis_dms_A[ii,
-                                                                            jj]
-                    w_vis_dms_A[ii, jj] += dw_1 + dw_2 + dw_3
-                    w_vis_dms_A[ii, jj] = np.clip(w_vis_dms_A[ii, jj], 0, 1)
-
-                    post_activity = dms_B
-                    dw_1 = alpha_w_vis_dms * pre_activity * np.clip(
-                        post_activity - nmda_thresh, 0, None) * np.clip(
-                            rpe[sim, trl], 0, None) * (1 - w_vis_dms_B[ii, jj])
-                    dw_2 = beta_w_vis_dms * pre_activity * np.clip(
-                        post_activity - nmda_thresh, 0, None) * np.clip(
-                            rpe[sim, trl], None, 0) * w_vis_dms_B[ii, jj]
-                    dw_3 = -gamma_w_vis_dms * pre_activity * np.clip(
-                        nmda_thresh - post_activity, 0, None) * w_vis_dms_B[ii,
-                                                                            jj]
-                    w_vis_dms_B[ii, jj] += dw_1 + dw_2 + dw_3
-                    w_vis_dms_B[ii, jj] = np.clip(w_vis_dms_B[ii, jj], 0, 1)
+            # B channel
+            post_activity = np.full_like(pre_activity, dms_B)
+            dw_1 = alpha_w_vis_dms * pre_activity * np.clip(
+                post_activity - nmda_thresh, 0, None) * np.clip(
+                    rpe[sim, trl], 0, None) * (1 - w_vis_dms_B[pre_indices, post_indices])
+            dw_2 = beta_w_vis_dms * pre_activity * np.clip(
+                post_activity - nmda_thresh, 0, None) * np.clip(
+                    rpe[sim, trl], None, 0) * w_vis_dms_B[pre_indices, post_indices]
+            dw_3 = -gamma_w_vis_dms * pre_activity * np.clip(
+                nmda_thresh - post_activity, 0, None) * w_vis_dms_B[pre_indices, post_indices]
+            w_vis_dms_B[pre_indices, post_indices] += dw_1 + dw_2 + dw_3
+            w_vis_dms_B[pre_indices, post_indices] = np.clip(
+                w_vis_dms_B[pre_indices, post_indices], 0, 1)
 
             # NOTE: 3-factor premotor-dls
             synapses = np.array([(2, 4), (2, 5), (3, 4), (3, 5)])
@@ -441,31 +440,30 @@ def simulate_model(params, *args):
             # NOTE: 2-factor vis-premotor
             pm_A = g[2, :].sum()
             pm_B = g[3, :].sum()
+            pre_activity = vis
+            pre_indices, post_indices = np.indices(pre_activity.shape)
 
-            for ii in range(vis_dim):
-                for jj in range(vis_dim):
+            # A channel
+            post_activity = np.full_like(pre_activity, pm_A)
+            dw_1 = alpha_w_vis_premotor * pre_activity * np.clip(
+                post_activity - nmda_thresh, 0,
+                None) * (1 - w_vis_pm_A[pre_indices, post_indices])
+            dw_2 = -beta_w_vis_premotor * pre_activity * np.clip(
+                nmda_thresh - post_activity, 0, None) * w_vis_pm_A[pre_indices, post_indices]
+            w_vis_pm_A[pre_indices, post_indices] += dw_1 + dw_2
+            w_vis_pm_A[pre_indices, post_indices] = np.clip(
+                w_vis_pm_A[pre_indices, post_indices], 0, 1)
 
-                    pre_activity = vis[ii, jj]
-
-                    post_activity = pm_A
-                    dw_1 = alpha_w_vis_premotor * pre_activity * np.clip(
-                        post_activity - nmda_thresh, 0,
-                        None) * (1 - w_vis_pm_A[ii, jj])
-                    dw_2 = -beta_w_vis_premotor * pre_activity * np.clip(
-                        nmda_thresh - post_activity, 0, None) * w_vis_pm_A[ii,
-                                                                           jj]
-                    w_vis_pm_A[ii, jj] += dw_1 + dw_2
-                    w_vis_pm_A[ii, jj] = np.clip(w_vis_pm_A[ii, jj], 0, 1)
-
-                    post_activity = pm_B
-                    dw_1 = alpha_w_vis_premotor * pre_activity * np.clip(
-                        post_activity - nmda_thresh, 0,
-                        None) * (1 - w_vis_pm_B[ii, jj])
-                    dw_2 = -beta_w_vis_premotor * pre_activity * np.clip(
-                        nmda_thresh - post_activity, 0, None) * w_vis_pm_B[ii,
-                                                                           jj]
-                    w_vis_pm_B[ii, jj] += dw_1 + dw_2
-                    w_vis_pm_B[ii, jj] = np.clip(w_vis_pm_B[ii, jj], 0, 1)
+            # B channel
+            post_activity = np.full_like(pre_activity, pm_B)
+            dw_1 = alpha_w_vis_premotor * pre_activity * np.clip(
+                post_activity - nmda_thresh, 0,
+                None) * (1 - w_vis_pm_B[pre_indices, post_indices])
+            dw_2 = -beta_w_vis_premotor * pre_activity * np.clip(
+                nmda_thresh - post_activity, 0, None) * w_vis_pm_B[pre_indices, post_indices]
+            w_vis_pm_B[pre_indices, post_indices] += dw_1 + dw_2
+            w_vis_pm_B[pre_indices, post_indices] = np.clip(
+                w_vis_pm_B[pre_indices, post_indices], 0, 1)
 
             # NOTE: 2-factor premotor-motor
             synapses = np.array([
@@ -783,4 +781,3 @@ if __name__ == "__main__":
   the best possible accuracy across both conditions (i.e., maximise accuracy)
     - vague explanation
 """
-
